@@ -1,5 +1,3 @@
-#![allow(clippy::unnecessary_wraps)]
-
 use std::{
 	borrow::Cow,
 	ops::RangeInclusive,
