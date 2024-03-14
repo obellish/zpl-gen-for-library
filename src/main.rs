@@ -32,7 +32,6 @@ static THREAD_ID: AtomicUsize = AtomicUsize::new(1);
 
 fn main() -> Result<()> {
 	Builder::new_multi_thread()
-		.enable_all()
 		.thread_name_fn(|| {
 			let id = THREAD_ID.fetch_add(1, Ordering::SeqCst) + 1;
 			let output = String::from("zpl-generator-pool-");
