@@ -1,9 +1,8 @@
 #![allow(clippy::unnecessary_wraps)]
 
-#[cfg(not(debug_assertions))]
-use std::ops::RangeInclusive;
 use std::{
 	borrow::Cow,
+	ops::RangeInclusive,
 	sync::atomic::{AtomicUsize, Ordering},
 };
 
@@ -13,8 +12,7 @@ use tokio::runtime::Builder;
 #[cfg(not(debug_assertions))]
 const RANGE: RangeInclusive<u32> = 50_000_000..=50_029_999;
 #[cfg(debug_assertions)]
-// const RANGE: RangeInclusive<u32> = 50_000_000..=50_000_001;
-const RANGE: [u32; 2] = [50_000_000, 50_029_999];
+const RANGE: RangeInclusive<u32> = 50_000_000..=50_000_019;
 const DEFAULT_DATA: &[Cow<'static, str>] = &[
 	Cow::Borrowed("^XA"),
 	Cow::Borrowed("^IDR:*.*"),
