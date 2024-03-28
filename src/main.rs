@@ -8,9 +8,9 @@ use miette::{IntoDiagnostic as _, Result};
 use tokio::runtime::Builder;
 
 #[cfg(not(debug_assertions))]
-const RANGE: RangeInclusive<u32> = 50_000_000..=50_029_999;
+const RANGE: RangeInclusive<u32> = 5_000_000..=5_029_999;
 #[cfg(debug_assertions)]
-const RANGE: RangeInclusive<u32> = 50_000_000..=50_000_019;
+const RANGE: RangeInclusive<u32> = 5_000_000..=5_000_019;
 const DEFAULT_DATA: &[Cow<'static, str>] = &[
 	Cow::Borrowed("^XA"),
 	Cow::Borrowed("^IDR:*.*"),
@@ -90,6 +90,19 @@ impl Ord for TagData {
 }
 
 fn generate_zpl(num: u32) -> String {
+	// let check_digit = {
+	// 	let num_as_string = num.to_string();
+	// 	let mut num_bytes = num_as_string.as_bytes().to_vec();
+
+	// 	check_digit::digit_checksum(&num_bytes)
+	// };
+
+	let raw_num_string = num.to_string();
+	let mut num_bytes = raw_num_string.as_bytes().to_vec();
+
+	let check_digit_byte = check_digit::digit_checksum(&num_bytes);
+	num_bytes.extend(check_digit_byte);
+	let num = String::from_utf8(num_bytes).unwrap();
 	let mut output = DEFAULT_DATA.to_vec();
 	output.extend_from_slice(&[
 		Cow::Borrowed("^XA"),
@@ -105,7 +118,10 @@ fn generate_zpl(num: u32) -> String {
 		Cow::Owned(format!("^FO216,879^A0N,37,53^FD{num:8}^FS")),
 		Cow::Owned(format!("^FO216,610^A0N,37,53^FD{num:8}^FS")),
 		Cow::Borrowed("^RS8,,,3,N"),
-		Cow::Owned(format!("^RFW,H,4,8^FD{:8X}^FS", flip_endian(num))),
+		Cow::Owned(format!(
+			"^RFW,H,4,8^FD{:8X}^FS",
+			flip_endian(num.parse().unwrap())
+		)),
 		Cow::Borrowed("^PQ1,0,1,Y"),
 		Cow::Borrowed("^XZ"),
 	]);
@@ -147,4 +163,85 @@ const fn flip_endian(s: u32) -> u32 {
 #[cfg(target_endian = "little")]
 const fn flip_endian(s: u32) -> u32 {
 	s.to_be()
+}
+
+mod check_digit {
+	const LUT_DIGIT: [u8; 10] = [0, 1, 2, 3, 4, 6, 7, 8, 9, 0];
+	const LUT_LETTER_T: [u8; 26] = [
+		1, 3, 5, 7, 9, 2, 4, 6, 8, 10, 2, 4, 6, 8, 10, 3, 5, 7, 9, 11, 3, 5, 7, 9, 11, 4,
+	];
+	const LUT_LETTER_F: [u8; 26] = [
+		2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 6, 7, 8, 9, 10, 11,
+	];
+
+	fn fold36(mut correct: bool, raw: &[u8]) -> Option<usize> {
+		let mut acc = 0;
+
+		for c in raw.iter().copied().rev() {
+			match c {
+				b'0'..=b'9' => {
+					let digit = (c - b'0') as usize;
+					acc += digit;
+					if correct {
+						acc += LUT_DIGIT[digit] as usize;
+					}
+					correct = !correct;
+				}
+				b'A'..=b'Z' => {
+					let letter = (c - b'A') as usize;
+					if correct {
+						acc += LUT_LETTER_T[letter] as usize;
+					} else {
+						acc += LUT_LETTER_F[letter] as usize;
+					}
+				}
+				_ => return None,
+			}
+		}
+
+		Some(acc)
+	}
+
+	fn fold10_swar(mask1: u64, mask2: u64, raw: &[u8]) -> Option<u64> {
+		let mut sum = 0;
+
+		for c in raw.rchunks(8) {
+			let mut buf = [b'0'; 8];
+			copy_from_small_slice(&mut buf, c);
+
+			let mut v = u64::from_le_bytes(buf);
+
+			let a = v.wrapping_add(0x4646464646464646);
+
+			v = v.wrapping_sub(0x3030303030303030);
+
+			if (a | v) & 0x8080808080808080 == 0 {
+				sum += u64::from((mask2.wrapping_sub(v) & 0x8080808080808080).count_ones());
+				sum += v.wrapping_mul(mask1) >> 56;
+			} else {
+				return None;
+			}
+		}
+
+		Some(sum)
+	}
+
+	fn copy_from_small_slice(buf: &mut [u8; 8], c: &[u8]) {
+		match c.len() {
+			8 => *buf = <[u8; 8]>::try_from(c).unwrap(),
+			7 => buf[1..].copy_from_slice(&<[u8; 7]>::try_from(c).unwrap()),
+			6 => buf[2..].copy_from_slice(&<[u8; 6]>::try_from(c).unwrap()),
+			5 => buf[3..].copy_from_slice(&<[u8; 5]>::try_from(c).unwrap()),
+			4 => buf[4..].copy_from_slice(&<[u8; 4]>::try_from(c).unwrap()),
+			3 => buf[5..].copy_from_slice(&<[u8; 3]>::try_from(c).unwrap()),
+			2 => buf[6..].copy_from_slice(&<[u8; 2]>::try_from(c).unwrap()),
+			1 => buf[7..].copy_from_slice(&<[u8; 1]>::try_from(c).unwrap()),
+			_ => unreachable!(),
+		}
+	}
+
+	pub fn digit_checksum(digits: &[u8]) -> Option<u8> {
+		let sum = fold10_swar(0x0102010201020102, 0x047f047f047f047f, digits)?;
+		Some(b'0' + ((10 - (sum % 10)) % 10) as u8)
+	}
 }
