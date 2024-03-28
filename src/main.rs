@@ -90,13 +90,6 @@ impl Ord for TagData {
 }
 
 fn generate_zpl(num: u32) -> String {
-	// let check_digit = {
-	// 	let num_as_string = num.to_string();
-	// 	let mut num_bytes = num_as_string.as_bytes().to_vec();
-
-	// 	check_digit::digit_checksum(&num_bytes)
-	// };
-
 	let raw_num_string = num.to_string();
 	let mut num_bytes = raw_num_string.as_bytes().to_vec();
 
@@ -110,16 +103,16 @@ fn generate_zpl(num: u32) -> String {
 		Cow::Borrowed("^PMN"),
 		Cow::Borrowed("^LRN"),
 		Cow::Borrowed("^BY3,2.0"),
-		Cow::Owned(format!("^FO165,542^BKN,N,60,N,N,A,B^FD{num:8}^FS")),
-		Cow::Borrowed("^FO139,690^XGET0^FS"),
-		Cow::Owned(format!("^FO216,790^A0N,37,53^FD{num:8}^FS")),
+		Cow::Owned(format!("^FO190,542^BKN,N,60,N,N,A,B^FD{num:0>8}^FS")),
+		Cow::Borrowed("^FO164,690^XGET0^FS"),
+		Cow::Owned(format!("^FO241,790^A0N,37,53^FD{num:0>8}^FS")),
 		Cow::Borrowed("^BY3,2.0"),
-		Cow::Owned(format!("^FO165,723^BKN,N,60,N,N,A,B^FD{num:8}^FS")),
-		Cow::Owned(format!("^FO216,879^A0N,37,53^FD{num:8}^FS")),
-		Cow::Owned(format!("^FO216,610^A0N,37,53^FD{num:8}^FS")),
+		Cow::Owned(format!("^FO190,723^BKN,N,60,N,N,A,B^FD{num:0>8}^FS")),
+		Cow::Owned(format!("^FO241,879^A0N,37,53^FD{num:0>8}^FS")),
+		Cow::Owned(format!("^FO241,610^A0N,37,53^FD{num:0>8}^FS")),
 		Cow::Borrowed("^RS8,,,3,N"),
 		Cow::Owned(format!(
-			"^RFW,H,4,8^FD{:8X}^FS",
+			"^RFW,H,4,8^FD{:0>8X}^FS",
 			flip_endian(num.parse().unwrap())
 		)),
 		Cow::Borrowed("^PQ1,0,1,Y"),
@@ -166,42 +159,6 @@ const fn flip_endian(s: u32) -> u32 {
 }
 
 mod check_digit {
-	const LUT_DIGIT: [u8; 10] = [0, 1, 2, 3, 4, 6, 7, 8, 9, 0];
-	const LUT_LETTER_T: [u8; 26] = [
-		1, 3, 5, 7, 9, 2, 4, 6, 8, 10, 2, 4, 6, 8, 10, 3, 5, 7, 9, 11, 3, 5, 7, 9, 11, 4,
-	];
-	const LUT_LETTER_F: [u8; 26] = [
-		2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 6, 7, 8, 9, 10, 11,
-	];
-
-	fn fold36(mut correct: bool, raw: &[u8]) -> Option<usize> {
-		let mut acc = 0;
-
-		for c in raw.iter().copied().rev() {
-			match c {
-				b'0'..=b'9' => {
-					let digit = (c - b'0') as usize;
-					acc += digit;
-					if correct {
-						acc += LUT_DIGIT[digit] as usize;
-					}
-					correct = !correct;
-				}
-				b'A'..=b'Z' => {
-					let letter = (c - b'A') as usize;
-					if correct {
-						acc += LUT_LETTER_T[letter] as usize;
-					} else {
-						acc += LUT_LETTER_F[letter] as usize;
-					}
-				}
-				_ => return None,
-			}
-		}
-
-		Some(acc)
-	}
-
 	fn fold10_swar(mask1: u64, mask2: u64, raw: &[u8]) -> Option<u64> {
 		let mut sum = 0;
 
