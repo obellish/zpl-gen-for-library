@@ -8,9 +8,10 @@ use miette::{IntoDiagnostic as _, Result};
 use tokio::runtime::Builder;
 
 #[cfg(not(debug_assertions))]
-const RANGE: RangeInclusive<u32> = 5_000_000..=5_029_999;
+const RANGE: RangeInclusive<u32> = 5_000_020..=5_050_019;
 #[cfg(debug_assertions)]
-const RANGE: RangeInclusive<u32> = 5_000_000..=5_000_019;
+// const RANGE: RangeInclusive<u32> = 5_000_000..=5_000_019;
+const RANGE: [u32; 2] = [5_000_020, 5_050_019];
 const DEFAULT_DATA: &[Cow<'static, str>] = &[
 	Cow::Borrowed("^XA"),
 	Cow::Borrowed("^IDR:*.*"),
