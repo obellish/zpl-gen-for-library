@@ -1,16 +1,19 @@
+#[cfg(not(feature = "proof"))]
+use std::ops::RangeInclusive;
 use std::{
 	borrow::Cow,
-	ops::RangeInclusive,
 	sync::atomic::{AtomicUsize, Ordering::SeqCst},
 };
 
 use miette::{IntoDiagnostic as _, Result};
 use tokio::runtime::Builder;
 
-#[cfg(not(debug_assertions))]
+#[cfg(not(any(feature = "proof", debug_assertions)))]
 const RANGE: RangeInclusive<u32> = 5_000_020..=5_050_019;
-#[cfg(debug_assertions)]
 // const RANGE: RangeInclusive<u32> = 5_000_000..=5_000_019;
+#[cfg(all(not(feature = "proof"), debug_assertions))]
+const RANGE: RangeInclusive<u32> = 5_000_000..=5_000_019;
+#[cfg(feature = "proof")]
 const RANGE: [u32; 2] = [5_000_020, 5_050_019];
 const DEFAULT_DATA: &[Cow<'static, str>] = &[
 	Cow::Borrowed("^XA"),
