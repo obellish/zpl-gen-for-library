@@ -1,12 +1,19 @@
+mod tracing_setup;
+
 #[cfg(not(feature = "proof"))]
 use std::ops::RangeInclusive;
 use std::{
-	borrow::Cow,
+	borrow::{Borrow, Cow},
+	io::Result as IoResult,
 	sync::atomic::{AtomicUsize, Ordering::SeqCst},
 };
 
-use miette::{IntoDiagnostic as _, Result};
-use tokio::runtime::Builder;
+use anyhow::Result;
+use futures::TryFutureExt;
+use tokio::{fs, runtime::Builder, time::Instant};
+use tracing::{event, Level};
+
+use self::tracing_setup::setup_tracing;
 
 #[cfg(not(any(feature = "proof", debug_assertions)))]
 const RANGE: RangeInclusive<u32> = 5_000_020..=5_050_019;
@@ -44,16 +51,24 @@ fn main() -> Result<()> {
 		.on_thread_stop(|| {
 			THREAD_ID.fetch_sub(1, SeqCst);
 		})
-		.build()
-		.into_diagnostic()?
+		.build()?
 		.block_on(run())
 }
 
 async fn run() -> Result<()> {
-	let mut output = Vec::<TagData>::new();
+	setup_tracing()?;
+	let timer = Instant::now();
+	event!(Level::DEBUG, "removing outputs dir");
+	_ = fs::remove_dir_all("./outputs").await;
+	fs::create_dir_all("./outputs").await?;
+	let mut futures = Vec::new();
+	let mut output = Vec::<TagData>::with_capacity(1000);
 	for (index, i) in RANGE.into_iter().enumerate() {
 		if output.len() >= 1000 {
-			paste_to_file(&mut output).await?;
+			let final_output = std::mem::replace(&mut output, Vec::with_capacity(1000));
+			futures.push(tokio::spawn(
+				async move { paste_to_file(final_output).await },
+			));
 		}
 
 		output.push(TagData {
@@ -62,7 +77,15 @@ async fn run() -> Result<()> {
 		});
 	}
 
-	paste_to_file(&mut output).await?;
+	futures.push(tokio::spawn(async move { paste_to_file(output).await }));
+
+	futures::future::try_join_all(futures)
+		.map_ok(|values| values.into_iter().collect::<IoResult<()>>())
+		.await??;
+
+	let time = Instant::now().duration_since(timer);
+
+	event!(Level::INFO, "took {time:?}");
 
 	Ok(())
 }
@@ -71,6 +94,12 @@ async fn run() -> Result<()> {
 struct TagData {
 	index: usize,
 	data: String,
+}
+
+impl Borrow<str> for TagData {
+	fn borrow(&self) -> &str {
+		&self.data
+	}
 }
 
 impl PartialEq for TagData {
@@ -94,6 +123,7 @@ impl Ord for TagData {
 }
 
 fn generate_zpl(num: u32) -> String {
+	event!(Level::TRACE, %num, "generating zpl");
 	let raw_num_string = num.to_string();
 	let mut num_bytes = raw_num_string.as_bytes().to_vec();
 
@@ -125,16 +155,21 @@ fn generate_zpl(num: u32) -> String {
 	output.join("\n")
 }
 
-async fn paste_to_file(v: &mut Vec<TagData>) -> Result<()> {
-	tokio::fs::create_dir_all("./outputs")
-		.await
-		.into_diagnostic()?;
+#[allow(clippy::unused_async)]
+#[tracing::instrument(skip_all)]
+async fn paste_to_file<I>(v: I) -> IoResult<()>
+where
+	I: IntoIterator<Item = TagData> + Send,
+{
+	let v = v.into_iter().collect::<Vec<_>>();
 	let file_name = {
 		let Some(first) = v.first() else {
 			return Ok(());
 		};
 
-		let Some(last) = v.last() else { return Ok(()) };
+		let Some(last) = v.last() else {
+			return Ok(());
+		};
 
 		format!(
 			"./outputs/Output file {}-{}.zpl",
@@ -142,12 +177,10 @@ async fn paste_to_file(v: &mut Vec<TagData>) -> Result<()> {
 			last.index + 1
 		)
 	};
-	let output = v.drain(..).map(|v| v.data).collect::<Vec<_>>().join("\n\n");
-	v.clear();
+	event!(Level::INFO, %file_name, "writing output");
+	let output = v.join("\n\n");
 
-	tokio::fs::write(file_name, output)
-		.await
-		.into_diagnostic()?;
+	fs::write(file_name, output).await?;
 
 	Ok(())
 }
@@ -172,12 +205,12 @@ mod check_digit {
 
 			let mut v = u64::from_le_bytes(buf);
 
-			let a = v.wrapping_add(0x4646464646464646);
+			let a = v.wrapping_add(0x4646_4646_4646_4646);
 
-			v = v.wrapping_sub(0x3030303030303030);
+			v = v.wrapping_sub(0x3030_3030_3030_3030);
 
-			if (a | v) & 0x8080808080808080 == 0 {
-				sum += u64::from((mask2.wrapping_sub(v) & 0x8080808080808080).count_ones());
+			if (a | v) & 0x8080_8080_8080_8080 == 0 {
+				sum += u64::from((mask2.wrapping_sub(v) & 0x8080_8080_8080_8080).count_ones());
 				sum += v.wrapping_mul(mask1) >> 56;
 			} else {
 				return None;
@@ -202,7 +235,7 @@ mod check_digit {
 	}
 
 	pub fn digit_checksum(digits: &[u8]) -> Option<u8> {
-		let sum = fold10_swar(0x0102010201020102, 0x047f047f047f047f, digits)?;
+		let sum = fold10_swar(0x0102_0102_0102_0102, 0x047f_047f_047f_047f, digits)?;
 		Some(b'0' + ((10 - (sum % 10)) % 10) as u8)
 	}
 }
