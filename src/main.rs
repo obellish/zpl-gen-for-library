@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 
 use anyhow::Result;
 use clap::Parser;
-use futures::TryFutureExt;
+use futures::{stream::FuturesUnordered, TryFutureExt};
 use tokio::{runtime::Builder, time::Instant};
 use tracing::{event, Level};
 use zpl_gen_for_library::{generate_zpl, paste_to_file, setup_tracing, Args, TagData};
@@ -18,6 +18,7 @@ fn main() -> Result<()> {
 		}
 	};
 	Builder::new_multi_thread()
+		.enable_time()
 		.thread_name_fn(|| {
 			let id = THREAD_ID.fetch_add(1, SeqCst) + 1;
 			let output = String::from("zpl-generator-pool-");
@@ -43,10 +44,9 @@ async fn run(args: Args) -> Result<()> {
 			panic!("must specify either amount_to_print or last_number")
 		}
 		(Some((amount_to_print, chunk_size)), _) => {
-			let range = args.first_number..=(args.first_number + amount_to_print);
-			println!("{}-{}", range.start(), range.end());
+			let range = args.first_number..(args.first_number + amount_to_print);
 
-			let mut futures = Vec::new();
+			let futures = FuturesUnordered::new();
 			let mut output = Vec::<TagData>::with_capacity(chunk_size);
 
 			for (index, i) in range.enumerate() {
