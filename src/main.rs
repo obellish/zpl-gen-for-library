@@ -55,7 +55,7 @@ async fn run(args: Args) -> Result<()> {
 						std::mem::replace(&mut output, Vec::with_capacity(chunk_size));
 					let final_dir = output_dir.clone();
 					futures.push(tokio::spawn(async move {
-						paste_to_file(final_dir, final_output).await
+						paste_to_file(final_dir, final_output.into_iter()).await
 					}));
 				}
 
@@ -63,7 +63,7 @@ async fn run(args: Args) -> Result<()> {
 			}
 
 			futures.push(tokio::spawn(async move {
-				paste_to_file(output_dir, output).await
+				paste_to_file(output_dir, output.into_iter()).await
 			}));
 
 			futures::future::try_join_all(futures)
@@ -76,7 +76,7 @@ async fn run(args: Args) -> Result<()> {
 				TagData::new(1, generate_zpl(last_number)),
 			];
 
-			paste_to_file(output_dir, data).await?;
+			paste_to_file(output_dir, data.into_iter()).await?;
 		}
 	}
 
