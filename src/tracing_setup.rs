@@ -10,13 +10,8 @@ use tracing_subscriber::{
 };
 
 pub fn setup_tracing() -> Result<()> {
-	let log_filter_layer = EnvFilter::try_from_default_env().or_else(|_| {
-		EnvFilter::try_new(if cfg!(debug_assertions) {
-			"trace"
-		} else {
-			"debug"
-		})
-	})?;
+	let log_filter_layer =
+		EnvFilter::try_from_default_env().or_else(|_| EnvFilter::try_new("debug"))?;
 
 	let log_fmt_layer = setup_console();
 
