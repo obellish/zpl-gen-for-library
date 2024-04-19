@@ -6,6 +6,7 @@ use tracing_subscriber::{
 		format::{Format, Pretty},
 	},
 	prelude::*,
+	registry::LookupSpan,
 	EnvFilter,
 };
 
@@ -25,7 +26,7 @@ pub fn setup_tracing() -> Result<()> {
 
 fn setup_console<S>() -> fmt::Layer<S, Pretty, Format<Pretty>>
 where
-	S: Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+	S: Subscriber + for<'a> LookupSpan<'a>,
 {
 	fmt::layer()
 		.pretty()

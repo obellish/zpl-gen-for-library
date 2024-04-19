@@ -8,22 +8,26 @@ rust-version.workspace = true
 version.workspace = true
 
 [dependencies]
-anyhow = "1"
-clap = { version = "4", features = ["derive"] }
-futures = "0.3"
-tokio = { version = "1", features = ["fs", "rt-multi-thread", "time"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = [
-    "ansi",
-    "env-filter",
-    "fmt",
-    "std"
-] }
+anyhow.workspace = true
+clap.workspace = true
+futures.workspace = true
+library-tracing-setup.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "time"] }
+tracing.workspace = true
 
 [features]
 
 [workspace]
+members = ["./crates/*"]
 resolver = "2"
+
+[workspace.dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+futures = "0.3"
+library-tracing-setup = { path = "./crates/library-tracing-setup" }
+tokio = { version = "1", features = ["fs", "rt"] }
+tracing = "0.1"
 
 [workspace.lints.rust]
 elided_lifetimes_in_paths = "warn"
@@ -36,7 +40,6 @@ cast_sign_loss = "allow"
 disallowed_methods = "deny"
 float_cmp = "allow"
 fn_params_excessive_bools = "allow"
-impl_trait_in_params = "warn"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 module_name_repetitions = "allow"

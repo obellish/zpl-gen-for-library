@@ -3,20 +3,16 @@ use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
 use anyhow::Result;
 use clap::Parser;
 use futures::{stream::FuturesUnordered, TryFutureExt};
+use library_tracing_setup::setup_tracing;
 use tokio::{runtime::Builder, time::Instant};
 use tracing::{event, Level};
-use zpl_gen_for_library::{generate_zpl, paste_to_file, setup_tracing, Args, TagData};
+use zpl_gen_for_library::{generate_zpl, paste_to_file, Args, TagData};
 
 static THREAD_ID: AtomicUsize = AtomicUsize::new(1);
 
 fn main() -> Result<()> {
-	let args = match Args::try_parse() {
-		Ok(args) => args,
-		Err(e) => {
-			println!("{e}");
-			return Ok(());
-		}
-	};
+	let args = Args::parse();
+
 	Builder::new_multi_thread()
 		.enable_time()
 		.thread_name_fn(|| {

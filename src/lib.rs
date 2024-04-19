@@ -1,13 +1,12 @@
 mod check_digit;
 mod fs;
 mod generator;
-mod tracing_setup;
 
 use std::path::PathBuf;
 
 use clap::Parser;
 
-pub use self::{fs::paste_to_file, generator::generate_zpl, tracing_setup::setup_tracing};
+pub use self::{fs::paste_to_file, generator::generate_zpl};
 
 #[derive(Debug, Clone, Parser)]
 #[command(version, about, long_about = None)]
