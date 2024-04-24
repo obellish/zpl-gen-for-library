@@ -13,7 +13,7 @@ pub use self::{fs::paste_to_file, generator::generate_zpl};
 pub struct Args {
 	/// The first number to generate.
 	#[arg(short, long, value_name = "NUMBER")]
-	pub first_number: u32,
+	pub first_number: Option<u32>,
 	/// The amount to print. Either this or [`last_number`](Self::last_number) is required.
 	#[arg(short, long, value_name = "AMOUNT")]
 	pub amount_to_print: Option<u32>,
@@ -26,6 +26,9 @@ pub struct Args {
 	/// The directory to output files.
 	#[arg(short, long, value_name = "DIRECTORY")]
 	pub output_dir: Option<PathBuf>,
+	/// The input file for reprints.
+	#[arg(short, long, value_name = "FILE")]
+	pub reprint_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone)]

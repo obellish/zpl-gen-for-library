@@ -1,10 +1,13 @@
-use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+use std::{
+	str::FromStr,
+	sync::atomic::{AtomicUsize, Ordering::SeqCst},
+};
 
 use anyhow::Result;
 use clap::Parser;
 use futures::{stream::FuturesUnordered, TryFutureExt};
 use library_tracing_setup::setup_tracing;
-use tokio::{runtime::Builder, time::Instant};
+use tokio::{fs, runtime::Builder, time::Instant};
 use tracing::{event, Level};
 use zpl_gen_for_library::{generate_zpl, paste_to_file, Args, TagData};
 
@@ -35,12 +38,17 @@ async fn run(args: Args) -> Result<()> {
 	_ = tokio::fs::remove_dir_all(&output_dir).await;
 	tokio::fs::create_dir(&output_dir).await?;
 
-	match (args.amount_to_print.zip(args.chunk_size), args.last_number) {
-		(None, None) => {
-			panic!("must specify either amount_to_print or last_number")
+	match (
+		args.first_number,
+		args.amount_to_print.zip(args.chunk_size),
+		args.last_number,
+		args.reprint_file,
+	) {
+		(None, None, None, None) => {
+			panic!("must specify either amount_to_print or last_number or reprint_file")
 		}
-		(Some((amount_to_print, chunk_size)), _) => {
-			let range = args.first_number..(args.first_number + amount_to_print);
+		(Some(first_number), Some((amount_to_print, chunk_size)), _, _) => {
+			let range = first_number..(first_number + amount_to_print);
 
 			let futures = FuturesUnordered::new();
 			let mut output = Vec::<TagData>::with_capacity(chunk_size);
@@ -66,14 +74,33 @@ async fn run(args: Args) -> Result<()> {
 				.map_ok(|values| values.into_iter().collect::<std::io::Result<()>>())
 				.await??;
 		}
-		(None, Some(last_number)) => {
+		(Some(first_number), None, Some(last_number), _) => {
 			let data = [
-				TagData::new(0, generate_zpl(args.first_number)),
+				TagData::new(0, generate_zpl(first_number)),
 				TagData::new(1, generate_zpl(last_number)),
 			];
 
 			paste_to_file(output_dir, data.into_iter()).await?;
 		}
+		(None, None, None, Some(reprint_file)) => {
+			#[allow(clippy::needless_collect)]
+			let data = fs::read_to_string(reprint_file)
+				.await?
+				.lines()
+				.map(<u32 as FromStr>::from_str)
+				.enumerate()
+				.filter_map(|(i, value)| {
+					let value = value.ok()?;
+
+					let data = TagData::new(i, generate_zpl(value));
+
+					Some(data)
+				})
+				.collect::<Vec<_>>();
+
+			paste_to_file(output_dir, data.into_iter()).await?;
+		}
+		_ => panic!("idk what you did."),
 	}
 
 	let time = Instant::now().duration_since(timer);
