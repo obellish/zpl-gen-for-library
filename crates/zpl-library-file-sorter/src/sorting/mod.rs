@@ -8,7 +8,7 @@ pub trait NaturalSort {
 	fn natural_sort(&mut self);
 }
 
-impl<'a> NaturalSort for [&'a str] {
+impl NaturalSort for [&str] {
 	fn natural_sort(&mut self) {
 		self.sort_by(|a, b| sorter(a, b).unwrap_or(Ordering::Equal));
 	}

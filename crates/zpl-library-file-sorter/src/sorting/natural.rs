@@ -60,12 +60,12 @@ impl<'a> HumanString<'a> {
 	}
 }
 
-impl<'a> PartialOrd for HumanString<'a> {
+impl PartialOrd for HumanString<'_> {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		let pairs = self.0.iter().zip(other.0.iter());
 		let compares = pairs.map(|pair| match pair {
-			(StringElement::Number(ref a), StringElement::Number(ref b)) => a.partial_cmp(b),
-			(StringElement::Letters(ref a), StringElement::Letters(ref b)) => a.partial_cmp(b),
+			(StringElement::Number(a), StringElement::Number(b)) => a.partial_cmp(b),
+			(StringElement::Letters(a), StringElement::Letters(b)) => a.partial_cmp(b),
 			_ => None,
 		});
 
